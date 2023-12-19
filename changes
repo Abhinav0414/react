@@ -1,0 +1,86 @@
+// App.js
+import React, { useState, useEffect } from 'react';
+import firebase from 'firebase/app';
+import 'firebase/auth';
+import 'firebase/firestore';
+
+const firebaseConfig = {
+  // Your Firebase config here
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const firestore = firebase.firestore();
+
+const ChatApp = () => {
+  const [user, setUser] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState('');
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      setUser(user);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = firestore.collection('messages').onSnapshot((snapshot) => {
+      const newMessages = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setMessages(newMessages);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const signIn = async () => {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    await auth.signInWithPopup(provider);
+  };
+
+  const signOut = () => {
+    auth.signOut();
+  };
+
+  const sendMessage = async () => {
+    if (newMessage.trim() !== '') {
+      await firestore.collection('messages').add({
+        text: newMessage,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+        user: user.displayName,
+      });
+      setNewMessage('');
+    }
+  };
+
+  return (
+    <div>
+      {user ? (
+        <div>
+          <button onClick={signOut}>Sign Out</button>
+          <ul>
+            {messages.map((msg) => (
+              <li key={msg.id}>
+                <strong>{msg.user}</strong>: {msg.text}
+              </li>
+            ))}
+          </ul>
+          <input
+            type="text"
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+          />
+          <button onClick={sendMessage}>Send</button>
+        </div>
+      ) : (
+        <button onClick={signIn}>Sign In with Google</button>
+      )}
+    </div>
+  );
+};
+
+export default ChatApp;
